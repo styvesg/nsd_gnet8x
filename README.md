@@ -1,7 +1,7 @@
 # Brain-optimized neural networks learn non-hierarchical models of representation in human visual cortex
 
-[![arXiv shield]()](https://www.biorxiv.org/content/10.1101/2022.01.21.477293v1)
-[![DOI]()](https://doi.org/10.1101/2022.01.21.477293)
+[![arXiv shield](https://img.shields.io/badge/bioRxiv-2022.01.21.477293v1-red)](https://www.biorxiv.org/content/10.1101/2022.01.21.477293v1)
+[![DOI](https://img.shields.io/badge/DOI-2022.01.21.477293-blue)](https://doi.org/10.1101/2022.01.21.477293)
 
 ## Contents
 
