@@ -20,11 +20,11 @@ List of files
 ## Hardware Requirements
 - 128 Gb RAM
 - GPU with 12Gb VRAM
-Requirements may be lowered for minimal testing enviroments.
+Requirements may be lowered for minimal testing enviroments by changing certain routine parameters.
 
 ## Software Requirements
 
-The exact minimal requirement are not known exactly. However, the implementation uses standard routines and very few dependencies, therefore old version may still perform adequately. The experiment has been performed with the following software versions:
+The exact minimal requirement are not known exactly. However, the implementation uses standard routines and very few dependencies, therefore old version may still perform adequately. The numerical experiments and analysis has been performed with the following software versions:
 
 - python 3.6.8
 - numpy 1.19.5
