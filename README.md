@@ -24,8 +24,10 @@ Requirements may be lowered for minimal testing enviroments.
 
 ## Software Requirements
 
-A python notebook environment with the following packages
-- numpy
-- scipy
-- torch
-- torchvision
+The exact minimal requirement are not known exactly. However, the implementation uses standard routines and very few dependencies, therefore old version may still perform adequately. The experiment has been performed with the following software versions:
+
+- python 3.6.8
+- numpy 1.19.5
+- scipy 1.5.4
+- torch 1.10 with CUDA 11.3 and cudnn 8.2
+
