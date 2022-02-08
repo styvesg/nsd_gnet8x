@@ -11,10 +11,20 @@
 
 # Overview
 
-
+The main purpose of this collection of notebooks is to show how the data-driven neural network model was trained on multiple subject responses, how the transfer learning experiment is performed, how the tuning analysis of the network representation is performed, and how prediction accuracy compares between the different forms of training.
 
 # Repo contents
-List of files
+
+| File | Description |
+|------|-------------|
+|`data_preparation.ipynb`| Some preprocessing of the NSD images and responses for convenience. |
+|`mask_preparation.ipynb`| Various preprocessing of masks over NSD voxels (not used directly here).|
+|`gnet8j_encoding_multisubjects.ipynb`| Training of the joint (all ROI of early visual cortex) data-driven GNet encoding model for all subjects. Includes cross-validation.|
+|`gnet8r_encoding_multisubjects.ipynb`| Training of the ROI-wise data-driven GNet encoding model for all subjects. Includes cross-validation.|
+|`gnet8x_prediction_multisubjects.ipynb`| Calculation of the model predictions for all images in the NSD dataset.|
+|`gnet8j_v_gnet8r_and_transfer_matrix.ipynb`| Validation accuracy comparison between GNet8j and GNet8r and calculation of the experimental transfer learning matrix.|
+|`gnet8x_tuning_analysis_and_accuracy.ipynb`| Layerwise and bipartite feature tuning analyses for the GNet8j and GNet8r models and detailed accuracy comparison.|
+|`synthetic_transfer_learning.ipynb`| Training of new encoding model (GNet8j, Gnet8r and transfer learning GNet8r) on the prediction of a previous GNet8r trained on NSD. |
 
 # System requirements
 ## Hardware Requirements
