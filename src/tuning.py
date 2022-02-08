@@ -5,6 +5,7 @@ import numpy as np
 from tqdm import tqdm
 
 import torch
+import torch as T
 from src.file_utility import zip_dict
 from src.torch_joint_training_unpacked_sequences import *
 from src.torch_gnet import Encoder
@@ -26,8 +27,32 @@ def cc_resampling_with_replacement(_pred_fn, _ext, _con, x, v, ordering, batch_s
     return np.array([np.mean(np.array(ccs),axis=0), np.std(np.array(ccs),axis=0)]).T
 
 
-def subjectwise_gnet8r_predictions(image_data, _pred_fn, checkpoint, subj, batch_size, device=torch.device("cuda:0")):
+def gnet8j_predictions(image_data, _pred_fn, checkpoint, batch_size, device=torch.device("cuda:0")):
     
+    subject_nv = {s: len(v) for s,v in checkpoint['val_cc'].items()}    
+    # allocate
+    subject_image_pred = {s: np.zeros(shape=(len(image_data[s]), nv), dtype=np.float32) for s,nv in subject_nv.items()}
+    _log_act_fn = lambda _x: T.log(1 + T.abs(_x))*T.tanh(_x)
+     
+    best_params = checkpoint['best_params']
+    shared_model = Encoder(np.array(checkpoint['input_mean']).astype(np.float32), trunk_width=64).to(device)
+    shared_model.load_state_dict(best_params['enc'])
+    shared_model.eval() 
+
+    # example fmaps
+    rec, fmaps, h = shared_model(T.from_numpy(image_data[list(image_data.keys())[0]][:20]).to(device))                                                                                                                     
+    for s,param in best_params['fwrfs'].items():
+        sd = Torch_LayerwiseFWRF(fmaps, nv=subject_nv[s], pre_nl=_log_act_fn, post_nl=_log_act_fn, dtype=np.float32).to(device) 
+        sd.load_state_dict(param)
+        sd.eval() 
+        
+        subject_image_pred[s] = subject_pred_pass(_pred_fn, shared_model, sd, image_data[s], batch_size)
+
+    return subject_image_pred
+
+
+def subjectwise_gnet8r_predictions(image_data, _pred_fn, checkpoint, subj, batch_size, device=torch.device("cuda:0")):
+    '''The reason for the code duplication is for ressouce management. We only define the shared feature extractor once whether we need a single subject or all of them. This could be improved.'''
     masks = checkpoint[list(checkpoint.keys())[0]]['group_mask']
     subject_nv = len(masks[subj])    
     # allocate
@@ -38,7 +63,7 @@ def subjectwise_gnet8r_predictions(image_data, _pred_fn, checkpoint, subj, batch
         group_masks = cp['group_mask']
         best_params = cp['best_params']
 
-        shared_model = Encoder(np.array([0.47605687, 0.4519502, 0.41192448]).astype(np.float32).reshape(1,3,1,1), trunk_width=64).to(device)
+        shared_model = Encoder(np.array(cp['input_mean']).astype(np.float32), trunk_width=64).to(device)
         shared_model.load_state_dict(best_params['enc'])
         shared_model.eval() 
 
@@ -49,6 +74,7 @@ def subjectwise_gnet8r_predictions(image_data, _pred_fn, checkpoint, subj, batch
         sd = Torch_LayerwiseFWRF(fmaps, nv=np.sum(group_masks[subj]), pre_nl=_log_act_fn, post_nl=_log_act_fn, dtype=np.float32).to(device) 
         sd.load_state_dict(param)
         sd.eval() 
+        
         subject_image_pred[:, group_masks[subj]] = subject_pred_pass(_pred_fn, shared_model, sd, image_data, batch_size)
 #    return the combined prediction for all subjects
     return subject_image_pred
@@ -63,20 +89,20 @@ def gnet8r_predictions(image_data, _pred_fn, checkpoint, batch_size, device=torc
     _log_act_fn = lambda _x: T.log(1 + T.abs(_x))*T.tanh(_x)
         
     for roi, cp in checkpoint.items(): 
+        print ('predicting %s voxels'%roi)
         group_masks = cp['group_mask']
         best_params = cp['best_params']
 
-        shared_model = Encoder(np.array([0.47605687, 0.4519502, 0.41192448]).astype(np.float32).reshape(1,3,1,1), trunk_width=64).to(device)
+        shared_model = Encoder(np.array(cp['input_mean']).astype(np.float32), trunk_width=64).to(device)
         shared_model.load_state_dict(best_params['enc'])
         shared_model.eval() 
-
         # example fmaps
-        rec, fmaps, h = shared_model(T.from_numpy(image_data[list(image_data.keys())[0]][:20]).to(device))
-                                                                                                                                     
+        rec, fmaps, h = shared_model(T.from_numpy(image_data[list(image_data.keys())[0]][:20]).to(device))                                 
         for s,param in best_params['fwrfs'].items():
             sd = Torch_LayerwiseFWRF(fmaps, nv=np.sum(group_masks[s]), pre_nl=_log_act_fn, post_nl=_log_act_fn, dtype=np.float32).to(device) 
             sd.load_state_dict(param)
             sd.eval() 
+
             subject_image_pred[s][:, group_masks[s]] = subject_pred_pass(_pred_fn, shared_model, sd, image_data[s], batch_size)
 #    return the combined prediction for all subjects
     return subject_image_pred
@@ -92,43 +118,42 @@ def gnet8j_tuning_analysis(image_data, voxel_data, stim_ordering, _pred_fn, chec
     best_params = checkpoint['best_params']
     
     _log_act_fn = lambda _x: T.log(1 + T.abs(_x))*T.tanh(_x)
-    shared_model = Encoder(np.array([0.47605687, 0.4519502, 0.41192448]).astype(np.float32).reshape(1,3,1,1), trunk_width=64).to(device)
+    shared_model = Encoder(np.array(checkpoint['input_mean']).astype(np.float32), trunk_width=64).to(device)
     shared_model.load_state_dict(best_params['enc'])
     shared_model.eval()     
     
     rec, fmaps, h = shared_model(T.from_numpy(image_data[list(image_data.keys())[0]][:20]).to(device))
                  
-    for s,v,param in zip_dict(voxel_data, best_params['fwrfs']):
+    for s,v,p in zip_dict(voxel_data, best_params['fwrfs']):
     
         nv = v.shape[1]
         sd = Torch_LayerwiseFWRF(fmaps, nv=nv, pre_nl=_log_act_fn, post_nl=_log_act_fn, dtype=np.float32).to(device) 
-        sd.load_state_dict(param)
+        sd.load_state_dict(p)
         sd.eval() 
-     
-        total_val_cc            = np.ndarray(shape=(nv, 2), dtype=v.dtype)
-        partition_incl_val_cc   = np.ndarray(shape=(len(tuning_masks), nv, 2), dtype=v.dtype)
-        partition_excl_val_cc   = np.ndarray(shape=(len(tuning_masks), nv, 2), dtype=v.dtype)        
-
-        total_val_cc[:] = \
-            cc_resampling_with_replacement(_pred_fn, shared_model, sd, image_data[s], v, stim_ordering[s], batch_size, n_resample=n_resample)    
+          
+        total_val_cc = cc_resampling_with_replacement(\
+            _pred_fn, shared_model, sd, image_data[s], v, stim_ordering[s], batch_size, n_resample=n_resample)    
             
-        weights = get_value(param['w'])
-        
+        weights = get_value(p['w'])
+        partition_incl_val_cc   = np.ndarray(shape=(len(tuning_masks), nv, 2), dtype=v.dtype)
+        partition_excl_val_cc   = np.ndarray(shape=(len(tuning_masks), nv, 2), dtype=v.dtype)      
         for l,rl in tqdm(enumerate(tuning_masks)):
             ##### Inclusion #####            
-            partition_params = np.zeros_like(weights)
-            partition_params[:, rl] = weights[:, rl]
-            set_value(sd.w, partition_params)
+            partition_w = np.zeros_like(weights)
+            partition_w[:, rl] = weights[:, rl]
+            set_value(sd.w, partition_w)
+            sd.eval() 
             
-            partition_incl_val_cc[l,:] = \
-                cc_resampling_with_replacement(_pred_fn, shared_model, sd, image_data[s], v, stim_ordering[s], batch_size, n_resample=n_resample)
+            partition_incl_val_cc[l,:] = cc_resampling_with_replacement(\
+                _pred_fn, shared_model, sd, image_data[s], v, stim_ordering[s], batch_size, n_resample=n_resample)
             ##### Exlusion ####            
-            partition_params = np.copy(weights)
-            partition_params[:, rl] = 0
-            set_value(sd.w, partition_params)
+            partition_w = np.copy(weights)
+            partition_w[:, rl] = 0
+            set_value(sd.w, partition_w)
+            sd.eval() 
             
-            partition_excl_val_cc[l,:] = \
-                cc_resampling_with_replacement(_pred_fn, shared_model, sd, image_data[s], v, stim_ordering[s], batch_size, n_resample=n_resample)       
+            partition_excl_val_cc[l,:] = cc_resampling_with_replacement(\
+                _pred_fn, shared_model, sd, image_data[s], v, stim_ordering[s], batch_size, n_resample=n_resample)       
          
         subject_total_val_cc[s]          = total_val_cc 
         subject_partition_incl_val_cc[s] = partition_incl_val_cc 
@@ -147,58 +172,55 @@ def gnet8r_tuning_analysis(image_data, voxel_data, stim_ordering, _pred_fn, chec
     subject_partition_incl_val_cc = {s: np.zeros(shape=(len(tuning_masks), len(m), 2), dtype=np.float32) for s,m in masks.items()}
     subject_partition_excl_val_cc = {s: np.zeros(shape=(len(tuning_masks), len(m), 2), dtype=np.float32) for s,m in masks.items()}
     
-    _log_act_fn = lambda _x: T.log(1 + T.abs(_x))*T.tanh(_x)
-    
+    _log_act_fn = lambda _x: T.log(1 + T.abs(_x))*T.tanh(_x)  
     #######
     for group, cp in checkpoint.items(): 
+        
         group_masks = cp['group_mask']
         best_params = cp['best_params']
-        
-        voxels = {s: v[:,m] for s,v,m in zip_dict(voxel_data, group_masks)}
-        
         #######
-        shared_model = Encoder(np.array([0.47605687, 0.4519502, 0.41192448]).astype(np.float32).reshape(1,3,1,1), trunk_width=64).to(device)
+        shared_model = Encoder(np.array(cp['input_mean']).astype(np.float32), trunk_width=64).to(device)
         shared_model.load_state_dict(best_params['enc'])
         shared_model.eval()     
 
         rec, fmaps, h = shared_model(T.from_numpy(image_data[list(image_data.keys())[0]][:20]).to(device))
 
-        for s,v,param in zip_dict(voxels, best_params['fwrfs']):
+        for s,v,m,p in zip_dict(voxel_data, group_masks, best_params['fwrfs']):
 
-            nv = v.shape[1]
+            nv = np.sum(m) # v.shape[1]
+            voxels = v[:,m]
             sd = Torch_LayerwiseFWRF(fmaps, nv=nv, pre_nl=_log_act_fn, post_nl=_log_act_fn, dtype=np.float32).to(device) 
-            sd.load_state_dict(param)
+            sd.load_state_dict(p)
             sd.eval() 
+
+            total_val_cc = cc_resampling_with_replacement(\
+                _pred_fn, shared_model, sd, image_data[s], voxels, stim_ordering[s], batch_size, n_resample=n_resample)            
             
-            total_val_cc            = np.ndarray(shape=(nv, 2), dtype=v.dtype)
+            weights = get_value(p['w'])
             partition_incl_val_cc   = np.ndarray(shape=(len(tuning_masks), nv, 2), dtype=v.dtype)
-            partition_excl_val_cc   = np.ndarray(shape=(len(tuning_masks), nv, 2), dtype=v.dtype)        
-
-            total_val_cc[:] = \
-                cc_resampling_with_replacement(_pred_fn, shared_model, sd, image_data[s], v, stim_ordering[s], batch_size, n_resample=n_resample)            
-            
-            weights = get_value(param['w'])
-
+            partition_excl_val_cc   = np.ndarray(shape=(len(tuning_masks), nv, 2), dtype=v.dtype)    
             for l,rl in tqdm(enumerate(tuning_masks)):
                 ##### Inclusion #####            
-                partition_params = np.zeros_like(weights)
-                partition_params[:, rl] = weights[:, rl]
-                set_value(sd.w, partition_params)
-
-                partition_incl_val_cc[l,:] =  \
-                    cc_resampling_with_replacement(_pred_fn, shared_model, sd, image_data[s], v, stim_ordering[s], batch_size, n_resample=n_resample) 
+                partition_w = np.zeros_like(weights)
+                partition_w[:, rl] = weights[:, rl]
+                set_value(sd.w, partition_w)
+                sd.eval() 
+                
+                partition_incl_val_cc[l,:] = cc_resampling_with_replacement(\
+                    _pred_fn, shared_model, sd, image_data[s], voxels, stim_ordering[s], batch_size, n_resample=n_resample) 
 
                 ##### Exlusion ####            
-                partition_params = np.copy(weights)
-                partition_params[:, rl] = 0
-                set_value(sd.w, partition_params)
+                partition_w = np.copy(weights)
+                partition_w[:, rl] = 0
+                set_value(sd.w, partition_w)
+                sd.eval() 
+                
+                partition_excl_val_cc[l,:] = cc_resampling_with_replacement(\
+                    _pred_fn, shared_model, sd, image_data[s], voxels, stim_ordering[s], batch_size, n_resample=n_resample)        
 
-                partition_excl_val_cc[l,:] =  \
-                    cc_resampling_with_replacement(_pred_fn, shared_model, sd, image_data[s], v, stim_ordering[s], batch_size, n_resample=n_resample)        
-
-            subject_total_val_cc[s][group_masks[s]]             = total_val_cc
-            subject_partition_incl_val_cc[s][:, group_masks[s]] = partition_incl_val_cc 
-            subject_partition_excl_val_cc[s][:, group_masks[s]] = partition_excl_val_cc 
+            subject_total_val_cc[s][m]             = total_val_cc
+            subject_partition_incl_val_cc[s][:, m] = partition_incl_val_cc 
+            subject_partition_excl_val_cc[s][:, m] = partition_excl_val_cc 
 
     
     return subject_total_val_cc, subject_partition_incl_val_cc, subject_partition_excl_val_cc

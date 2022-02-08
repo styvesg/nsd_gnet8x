@@ -15,7 +15,6 @@ class TrunkBlock(L.Module):
         self.bn1 = L.BatchNorm2d(feat_in, eps=1e-05, momentum=0.25, affine=True, track_running_stats=True)
 
         I.xavier_normal_(self.conv1.weight, gain=I.calculate_gain('relu'))
-        #I.normal_(self.conv1.bias, 0., 1.)
         I.constant_(self.conv1.bias, 0.0) # current
         
     def forward(self, x):
@@ -49,13 +48,6 @@ class EncStage(L.Module):
         self.pool1  = L.MaxPool2d(kernel_size=3, stride=2, padding=1)
         ##
         self.tw = int(trunk_width)
-#        self.conv4a  = TrunkBlock(128, self.tw)
-#        self.conv5a  = TrunkBlock(self.tw, self.tw)
-#        self.conv6a  = TrunkBlock(self.tw, self.tw)
-#        self.conv4b  = TrunkBlock(self.tw, self.tw)
-#        self.conv5b  = TrunkBlock(self.tw, self.tw)
-#        self.conv6b  = TrunkBlock(self.tw, self.tw)   
-        # original
         self.conv4a  = TrunkBlock(128, 2*self.tw)
         self.conv5a  = TrunkBlock(2*self.tw, 2*self.tw)
         self.conv6a  = TrunkBlock(2*self.tw, 2*self.tw)
@@ -64,7 +56,6 @@ class EncStage(L.Module):
         self.conv6b  = TrunkBlock(2*self.tw, self.tw)
         ##
         I.xavier_normal_(self.conv3.weight, gain=I.calculate_gain('relu'))        
-        #I.normal_(self.conv3.bias, 0., 1.)
         I.constant_(self.conv3.bias, 0.0)
         
     def forward(self, x):
@@ -75,11 +66,7 @@ class EncStage(L.Module):
         c5b = self.conv5b(c5a)
         c6a = self.conv6a(c5b)
         c6b = self.conv6b(c6a)
-        
-        #return [T.cat([c3, c4a[:,:self.tw], c4b[:,:self.tw]], dim=1)], c4b
-        #return [T.cat([c3, c4a, c4b], dim=1), 
-        #        T.cat([c5a, c5b, c6a, c6b], dim=1)], c6b
-        # original
+
         return [T.cat([c3, c4a[:,:self.tw], c4b[:,:self.tw]], dim=1), 
                 T.cat([c5a[:,:self.tw], c5b[:,:self.tw], c6a[:,:self.tw], c6b], dim=1)], c6b
 
@@ -95,4 +82,4 @@ class Encoder(L.Module):
 
     def forward(self, x):
         fmaps, h = self.enc(self.pre(x - self.mu))
-        return x, fmaps, h #y, fmaps
+        return x, fmaps, h

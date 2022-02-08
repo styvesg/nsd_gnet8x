@@ -117,8 +117,8 @@ def subject_holdout_pass(_hld_fn, _ext, _cons, x, v, ordering, batch_size):
 
 #################################################
 def subject_pred_pass(_pred_fn, _ext, _con, x, batch_size):
-    pred = _pred_fn(_ext, _con, x[:batch_size])
-    pred = np.zeros(shape=(len(x), pred.shape[1]), dtype=np.float32)
+    pred = _pred_fn(_ext, _con, x[:batch_size]) # this is just to get the shape
+    pred = np.zeros(shape=(len(x), pred.shape[1]), dtype=np.float32) # allocate
     for rb,_ in iterate_range(0, len(x), batch_size):
         pred[rb] = get_value(_pred_fn(_ext, _con, x[rb]))
     return pred
@@ -238,26 +238,5 @@ def validation_(_pred_fn, _ext, _cons, stims, voxels, ordering, batch_size, mask
         _cons[s].eval()   
         val_ccs[s] = np.nan_to_num(subject_validation_pass(_pred_fn, _ext, _cons[s], stims[s], v[:,mask], ordering[s], batch_size))
     return val_ccs
-
-
-
-
-
-#########################################################
-def sample_with_replacement(indices):
-    return indices[np.random.randint(len(indices), size=len(indices))]
-def cc_resampling_with_replacement(_pred_fn, _ext, _con, x, v, batch_size, n_resample=1):
-    pred = subject_pred_pass(_pred_fn, _ext, _con, x, v, batch_size)
-    cc = np.zeros(shape=(v.shape[1]), dtype=v.dtype)
-    ccs = []
-    for rs in tqdm(range(n_resample)):
-        res = sample_with_replacement(np.arange(len(pred)))
-        data_res = v[res]
-        pred_res = pred[res]
-        for i in range(v.shape[1]):
-            cc[i] = np.corrcoef(data_res[:,i], pred_res[:,i])[0,1]  
-        ccs += [np.nan_to_num(cc)]
-    return ccs
-
 
 
