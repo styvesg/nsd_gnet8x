@@ -27,6 +27,12 @@ The main purpose of this collection of notebooks is to show how the data-driven 
 |`gnet8x_tuning_analysis_and_accuracy.ipynb`| Layerwise and bipartite feature tuning analyses for the GNet8j and GNet8r models and detailed accuracy comparison.|
 |`synthetic_transfer_learning.ipynb`| Training of new encoding model (GNet8j, Gnet8r and transfer learning GNet8r) on the prediction of a previous GNet8r trained on NSD. |
 
+# Data requirements
+
+Paper: [A massive 7T fMRI dataset to bridge cognitive neuroscience and artificial intelligence](https://www.nature.com/articles/s41593-021-00962-x)
+
+Data: [http://naturalscenesdataset.org/](http://naturalscenesdataset.org/)
+
 # System requirements
 ## Hardware Requirements
 - 128 Gb RAM
